@@ -11,9 +11,12 @@ import torch.nn.functional as F
 from torchvision import transforms
 from transformers import AutoModelForImageSegmentation
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), 'BiRefNet_v2'))
+import math
+sys.path.append(os.path.join(os.path.dirname(__file__), 'BiRefNet'))
 
 def get_files(path, extensions):
+    if isinstance(extensions, list):
+        extensions = tuple(extensions)
     files = {}
     for file in os.listdir(path):
         if file.endswith(extensions):
@@ -21,7 +24,7 @@ def get_files(path, extensions):
     return files
 
 def scan_model():
-    model_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
+    model_path = os.path.join(folder_paths.models_dir, 'transparent-background')
     model_ext = [".pth"]
     model_dict = get_files(model_path, model_ext)
     return model_dict
@@ -74,29 +77,69 @@ def generate_VITMatte_trimap(mask, erode, dilate):
     trimap[dilate_mask > 0.5] = 0.5
     return Image.fromarray(trimap)
 
-def generate_VITMatte(image, trimap, local_files_only=False, device='cuda', max_megapixels=2.0):
-    from transformers import AutoModelForImageSegmentation
-    model_path = os.path.join(folder_paths.models_dir, 'BiRefNet', 'VITMatte')
+def check_and_download_model(model_path, repo_id):
+    model_path = os.path.join(folder_paths.models_dir, model_path)
     if not os.path.exists(model_path):
-        os.makedirs(model_path, exist_ok=True)
+        print(f"Downloading {repo_id} model...")
         from huggingface_hub import snapshot_download
-        snapshot_download(repo_id="ZhengPeng7/VITMatte", local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
-    model = AutoModelForImageSegmentation.from_pretrained(model_path, trust_remote_code=True)
-    model.to(device)
-    model.eval()
-    image = np.array(image)
-    trimap = np.array(trimap)
-    image = cv2.resize(image, (1024, 1024))
-    trimap = cv2.resize(trimap, (1024, 1024))
-    image = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-    trimap = torch.from_numpy(trimap).unsqueeze(0).unsqueeze(0).float()
-    image = image.to(device)
-    trimap = trimap.to(device)
+        snapshot_download(repo_id=repo_id, local_dir=model_path, ignore_patterns=["*.md", "*.txt", "onnx", ".git"])
+    return model_path
+
+class VITMatteModel:
+    def __init__(self,model,processor):
+        self.model = model
+        self.processor = processor
+
+def load_VITMatte_model(model_name:str, local_files_only:bool=False) -> object:
+    model_name = "vitmatte"
+    model_repo = "hustvl/vitmatte-small-composition-1k"
+    model_path  = check_and_download_model(model_name, model_repo)
+    from transformers import VitMatteImageProcessor, VitMatteForImageMatting
+    model = VitMatteForImageMatting.from_pretrained(model_path, local_files_only=local_files_only)
+    processor = VitMatteImageProcessor.from_pretrained(model_path, local_files_only=local_files_only)
+    vitmatte = VITMatteModel(model, processor)
+    return vitmatte
+
+def generate_VITMatte(image, trimap, local_files_only=False, device='cuda', max_megapixels=2.0):
+    import torch
+    from PIL import Image
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    if trimap.mode != 'L':
+        trimap = trimap.convert('L')
+    max_megapixels *= 1048576
+    width, height = image.size
+    ratio = width / height
+    target_width = math.sqrt(ratio * max_megapixels)
+    target_height = target_width / ratio
+    target_width = int(target_width)
+    target_height = int(target_height)
+    if width * height > max_megapixels:
+        image = image.resize((target_width, target_height), Image.BILINEAR)
+        trimap = trimap.resize((target_width, target_height), Image.BILINEAR)
+    model_name = "hustvl/vitmatte-small-composition-1k"
+    if device=="cpu":
+        device = torch.device('cpu')
+    else:
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        else:
+            print("vitmatte device is set to cuda, but not available, using cpu instead.")
+            device = torch.device('cpu')
+    vit_matte_model = load_VITMatte_model(model_name=model_name, local_files_only=local_files_only)
+    vit_matte_model.model.to(device)
+    inputs = vit_matte_model.processor(images=image, trimaps=trimap, return_tensors="pt")
     with torch.no_grad():
-        pred = model(image, trimap)
-    pred = pred.cpu().numpy().squeeze()
-    pred = cv2.resize(pred, (image.shape[3], image.shape[2]))
-    return Image.fromarray((pred * 255).astype(np.uint8))
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        predictions = vit_matte_model.model(**inputs).alphas
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+    mask = tensor2pil(predictions).convert('L')
+    mask = mask.crop((0, 0, image.width, image.height))
+    if width * height > max_megapixels:
+        mask = mask.resize((width, height), Image.BILINEAR)
+    return mask
 
 def histogram_remap(mask, black_point, white_point):
     mask = tensor2pil(mask)

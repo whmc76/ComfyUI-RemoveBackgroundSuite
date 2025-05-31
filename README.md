@@ -1,37 +1,47 @@
 # ComfyUI-RemoveBackgroundSuite
 
-这是一个 ComfyUI 插件，专注于实现各类高质量背景移除功能，支持多种 SOTA 算法和细节处理。
+> 基于 ComfyUI 的抠图套件，支持多种抠图模型和细节处理方式。
+
+## 版本信息
+
+- 当前版本：v1.1
+- 更新日期：2024-03-21
+
+## 更新日志
+
+### v1.1 (2024-03-21)
+- 优化 BiRefNet 模型加载逻辑，支持 dynamic、HR、HR-matting 模型
+- 改进 BiRefNetUltraV3_RBS 节点，支持多种细节处理方式
+- 优化 VITMatte 模型加载和推理流程
+- 改进文档结构和说明
+
+### v1.0 (2024-03-20)
+- 初始版本发布
+- 支持 BiRefNet 和 TransparentBackground 两种抠图模型
+- 支持多种细节处理方式
 
 ## 节点说明
 
-### 1. LoadBiRefNetModel_RBS
-- **功能**：加载本地 BiRefNet 模型权重。
+### 1. LoadBiRefNetModelV3_RBS（推荐）
+- **功能**：自动下载并加载 BiRefNet 最新模型，支持 BiRefNet_dynamic。
 - **参数**：
-  - `model`：选择本地模型文件（.pth）。
+  - `version`：选择模型版本（BiRefNet-General、RMBG-2.0、BiRefNet_dynamic）。
 - **输出**：`birefnet_model`（供后续节点使用）
 
-### 2. LoadBiRefNetModelV2_RBS
-- **功能**：自动下载并加载 BiRefNet 新版模型（支持 Huggingface 仓库）。
-- **参数**：
-  - `version`：选择模型版本（如 BiRefNet-General、RMBG-2.0）。
-- **输出**：`birefnet_model`（供后续节点使用）
-
-### 3. BiRefNetUltraV2_RBS
-- **功能**：使用 BiRefNet Ultra V2 进行高质量背景移除。
+### 2. BiRefNetUltraV3_RBS（推荐）
+- **功能**：使用 BiRefNet Ultra V3 进行高质量背景移除，支持 dynamic 动态模型。
 - **参数**：
   - `image`：输入图片（支持批量）。
-  - `birefnet_model`：已加载的模型。
-  - `detail_method`：细节处理方式（VITMatte、PyMatting、GuidedFilter等）。
-  - `detail_erode`/`detail_dilate`：腐蚀/膨胀参数，影响边缘细节。
-  - `black_point`/`white_point`：黑白场，调整掩码对比度。
-  - `process_detail`：是否进行细节处理。
-  - `device`：推理设备（cuda/cpu）。
-  - `max_megapixels`：最大处理分辨率。
+  - `birefnet_model`：已加载的模型（支持 dynamic）。
+  - `detail_method`、`detail_erode`、`detail_dilate`、`black_point`、`white_point`、`process_detail`、`device`、`max_megapixels`：详见节点界面。
 - **输出**：
   - `image`：去背景后的 RGBA 图片
   - `mask`：前景掩码
 
-### 4. TransparentBackgroundUltra_RBS
+### 3. TransparentBackgroundUltra_RBS（[WIP] 开发中）
+
+> ⚠️ 注意：该节点目前处于开发/调试阶段，输出结果可能异常，暂不建议生产环境使用。
+
 - **功能**：将图片背景转换为透明，支持多种细节处理。
 - **参数**：
   - `image`：输入图片。
@@ -42,12 +52,12 @@
   - `mask`：前景掩码
 
 ## 典型用法
-1. 用 `LoadBiRefNetModel_RBS` 或 `LoadBiRefNetModelV2_RBS` 加载模型。
-2. 用 `BiRefNetUltraV2_RBS` 进行背景移除。
+1. 用 `LoadBiRefNetModelV3_RBS` 加载模型（推荐选择 BiRefNet_dynamic）。
+2. 用 `BiRefNetUltraV3_RBS` 进行背景移除。
 3. 可选：用 `TransparentBackgroundUltra_RBS` 进一步处理透明背景。
 
 ## 注意事项
-- 请将模型文件放在 `ComfyUI/models/BiRefNet/pth/` 目录下，或使用新版节点自动下载。
+- 请将模型文件放在 `ComfyUI/models/transparent-background/` 目录下，或使用新版节点自动下载。
 - 推荐使用 CUDA 设备以获得更快推理速度。
 - 细节处理方法对边缘质量有显著影响，可根据实际需求调整。
 - 插件所有节点均归类于 `RemoveBackgroundSuite`，便于统一管理。
@@ -63,4 +73,8 @@ pip install -r requirements.txt
 - **节点不显示**：请确认插件已放入 `custom_nodes` 目录并重启 ComfyUI。
 
 ---
+
+## 致谢
+本插件大量借鉴和参考了 [ComfyUI_LayerStyle_Advance](https://github.com/chflame163/ComfyUI_LayerStyle_Advance) 项目的设计与实现，特别感谢原作者 chflame163 的开源贡献！
+
 如有更多问题请参考原项目文档或在 Issues 区反馈。
