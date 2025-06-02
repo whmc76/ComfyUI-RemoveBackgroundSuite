@@ -66,15 +66,30 @@ def mask_edge_detail(image, mask, radius, black_point, white_point):
     return torch.from_numpy(np.array(mask)).unsqueeze(0)
 
 def generate_VITMatte_trimap(mask, erode, dilate):
-    mask = tensor2pil(mask)
-    mask = np.array(mask)
+    # 保证mask为0~255的uint8
+    if isinstance(mask, torch.Tensor):
+        arr = mask.detach().cpu().numpy()
+        if arr.max() <= 1.0:
+            arr = (arr * 255).astype(np.uint8)
+        else:
+            arr = arr.astype(np.uint8)
+        mask = arr.squeeze()
+    elif isinstance(mask, Image.Image):
+        mask = np.array(mask)
+        if mask.max() <= 1.0:
+            mask = (mask * 255).astype(np.uint8)
+    else:
+        if mask.max() <= 1.0:
+            mask = (mask * 255).astype(np.uint8)
+        else:
+            mask = mask.astype(np.uint8)
     kernel = np.ones((erode, erode), np.uint8)
     erode_mask = cv2.erode(mask, kernel, iterations=1)
     kernel = np.ones((dilate, dilate), np.uint8)
     dilate_mask = cv2.dilate(mask, kernel, iterations=1)
-    trimap = np.zeros_like(mask)
-    trimap[erode_mask > 0.5] = 1
-    trimap[dilate_mask > 0.5] = 0.5
+    trimap = np.zeros_like(mask, dtype=np.uint8)
+    trimap[erode_mask > 250] = 255
+    trimap[(dilate_mask > 0) & (erode_mask <= 250)] = 128
     return Image.fromarray(trimap)
 
 def check_and_download_model(model_path, repo_id):
