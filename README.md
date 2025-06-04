@@ -1,5 +1,5 @@
 # ComfyUI-RemoveBackgroundSuite
-![Uploading image.png…]()
+![image](https://github.com/user-attachments/assets/75fb08b6-184d-46e1-a4e6-3294dd94d66d)
 
 > 基于 ComfyUI 的抠图套件，支持多种抠图模型和细节处理方式。
 
