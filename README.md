@@ -4,21 +4,23 @@
 
 ## 版本信息
 
-- 当前版本：v1.1
-- 更新日期：2024-03-21
+- 当前版本：v1.2
+- 更新日期：2024-06-XX
 
 ## 更新日志
 
+### v1.2 (2024-06-XX)
+- 节点界面极简化，移除所有细节处理相关参数和功能。
+- TransparentBackgroundUltra_RBS 去除 WIP 标志。
+
 ### v1.1 (2024-03-21)
 - 优化 BiRefNet 模型加载逻辑，支持 dynamic、HR、HR-matting 模型
-- 改进 BiRefNetUltraV3_RBS 节点，支持多种细节处理方式
 - 优化 VITMatte 模型加载和推理流程
 - 改进文档结构和说明
 
 ### v1.0 (2024-03-20)
 - 初始版本发布
 - 支持 BiRefNet 和 TransparentBackground 两种抠图模型
-- 支持多种细节处理方式
 
 ## 节点说明
 
@@ -33,20 +35,17 @@
 - **参数**：
   - `image`：输入图片（支持批量）。
   - `birefnet_model`：已加载的模型（支持 dynamic）。
-  - `detail_method`、`detail_erode`、`detail_dilate`、`black_point`、`white_point`、`process_detail`、`device`、`max_megapixels`：详见节点界面。
+  - `device`、`max_megapixels`：详见节点界面。
 - **输出**：
   - `image`：去背景后的 RGBA 图片
   - `mask`：前景掩码
 
-### 3. TransparentBackgroundUltra_RBS（[WIP] 开发中）
-
-> ⚠️ 注意：该节点目前处于开发/调试阶段，输出结果可能异常，暂不建议生产环境使用。
-
-- **功能**：将图片背景转换为透明，支持多种细节处理。
+### 3. TransparentBackgroundUltra_RBS
+- **功能**：将图片背景转换为透明。
 - **参数**：
   - `image`：输入图片。
   - `model`：选择本地模型。
-  - 其余参数同上。
+  - `device`、`max_megapixels`：详见节点界面。
 - **输出**：
   - `image`：透明背景图片
   - `mask`：前景掩码
