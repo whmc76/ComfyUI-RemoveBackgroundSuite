@@ -61,6 +61,18 @@ def mask_edge_detail(image, mask, radius, black_point, white_point):
     mask = tensor2pil(mask)
     image = np.array(image)
     mask = np.array(mask)
+    # 修正 image 类型和通道数
+    if image.dtype not in [np.uint8, np.float32]:
+        image = image.astype(np.uint8)
+    if image.ndim == 2:
+        pass  # 灰度
+    elif image.shape[2] > 3:
+        image = image[:, :, :3]  # 只保留前三通道
+    # 修正 mask 类型和通道数
+    if mask.dtype not in [np.uint8, np.float32]:
+        mask = mask.astype(np.uint8)
+    if mask.ndim == 3 and mask.shape[2] > 1:
+        mask = mask[:, :, 0]  # 只保留单通道
     mask = cv2.ximgproc.guidedFilter(image, mask, radius, 1e-6)
     mask = adjust_levels(Image.fromarray(mask), black_point, white_point)
     return torch.from_numpy(np.array(mask)).unsqueeze(0)

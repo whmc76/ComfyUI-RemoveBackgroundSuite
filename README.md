@@ -58,12 +58,17 @@ The following models are supported:
 - **Input**: Mask
 - **Output**: Processed Mask
 - **Parameters**:
-  - Blur Radius: Gaussian blur radius for mask smoothing
-  - Feather Radius: Edge feathering radius
-  - Contrast: Mask contrast adjustment
-  - Brightness: Mask brightness adjustment
+  - Detail Method: Choose from VITMatte, PyMatting, or GuidedFilter
+  - Erode/Dilate: Control the trimap generation
+  - Black/White Point: Adjust mask levels
+  - Max Megapixels: Control processing resolution
 
 ## Changelog
+
+### v1.1.1
+- Fixed VITMatte processing quality issues
+- Optimized image size handling for different processing methods
+- Improved mask processing workflow
 
 ### v1.1.0
 - Optimized dependency management

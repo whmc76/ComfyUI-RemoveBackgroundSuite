@@ -267,21 +267,51 @@ class ProcessDetails_RBS:
                 local_files_only = detail_method == "VITMatte(local)"
                 trimap = generate_VITMatte_trimap(orig_mask, detail_erode, detail_dilate)
                 processed_mask = generate_VITMatte(orig_image, trimap, local_files_only, device, max_megapixels)
-            elif detail_method == "PyMatting":
-                trimap = generate_VITMatte_trimap(orig_mask, detail_erode, detail_dilate)
-                try:
-                    from pymatting import estimate_alpha_lkm
-                except ImportError:
-                    raise RuntimeError("请先安装 pymatting 库: pip install pymatting scikit-image")
-                import numpy as np
-                image_np = np.array(orig_image.convert('RGB'))
-                trimap_np = np.array(trimap.convert('L')) / 255.0
-                # PyMatting只用LKM算法，参数风格与LayerStyle_Advance一致
-                alpha = estimate_alpha_lkm(image_np, trimap_np)
-                processed_mask = Image.fromarray((alpha * 255).astype(np.uint8))
-            else:  # GuidedFilter
-                processed_mask = mask_edge_detail(i, m, detail_erode, black_point, white_point)
-                processed_mask = tensor2pil(processed_mask)
+            else:
+                # 计算目标尺寸
+                width, height = orig_image.size
+                max_pixels = int(max_megapixels * 1_048_576)
+                orig_pixels = width * height
+                patch_size = 32  # 保证分辨率为32的倍数
+                
+                if orig_pixels > max_pixels:
+                    scale = (max_pixels / orig_pixels) ** 0.5
+                    new_width = max(1, int(width * scale))
+                    new_height = max(1, int(height * scale))
+                else:
+                    new_width, new_height = width, height
+                    
+                # 向下取整为patch_size的倍数
+                new_width = (new_width // patch_size) * patch_size
+                new_height = (new_height // patch_size) * patch_size
+                new_width = max(patch_size, new_width)
+                new_height = max(patch_size, new_height)
+                inference_image_size = (new_width, new_height)
+                
+                log(f"[ProcessDetails_RBS] 原始尺寸: {width}x{height}, 实际推理尺寸: {inference_image_size[0]}x{inference_image_size[1]}", message_type='info')
+                
+                # 调整图像大小
+                resized_image = orig_image.resize(inference_image_size, Image.BILINEAR)
+                resized_mask = orig_mask.resize(inference_image_size, Image.BILINEAR)
+                
+                if detail_method == "PyMatting":
+                    trimap = generate_VITMatte_trimap(resized_mask, detail_erode, detail_dilate)
+                    try:
+                        from pymatting import estimate_alpha_lkm
+                    except ImportError:
+                        raise RuntimeError("请先安装 pymatting 库: pip install pymatting scikit-image")
+                    import numpy as np
+                    image_np = np.array(resized_image.convert('RGB'))
+                    trimap_np = np.array(trimap.convert('L')) / 255.0
+                    # PyMatting只用LKM算法，参数风格与LayerStyle_Advance一致
+                    alpha = estimate_alpha_lkm(image_np, trimap_np)
+                    processed_mask = Image.fromarray((alpha * 255).astype(np.uint8))
+                else:  # GuidedFilter
+                    processed_mask = mask_edge_detail(pil2tensor(resized_image), image2mask(resized_mask), detail_erode, black_point, white_point)
+                    processed_mask = tensor2pil(processed_mask)
+                
+                # 还原到原始尺寸
+                processed_mask = processed_mask.resize(orig_image.size, Image.BILINEAR)
             
             # 应用处理后的蒙版到图像
             processed_image = RGB2RGBA(orig_image, processed_mask)
