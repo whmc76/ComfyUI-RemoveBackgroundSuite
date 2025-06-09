@@ -240,7 +240,7 @@ class ProcessDetails_RBS:
             "required": {
                 "image": ("IMAGE",),
                 "mask": ("MASK",),
-                "detail_method": (["VITMatte", "VITMatte(local)", "GuidedFilter"], {"default": "VITMatte"}),
+                "detail_method": (["VITMatte", "VITMatte(local)", "PyMatting", "GuidedFilter"], {"default": "VITMatte"}),
                 "detail_erode": ("INT", {"default": 4, "min": 1, "max": 100, "step": 1}),
                 "detail_dilate": ("INT", {"default": 2, "min": 1, "max": 100, "step": 1}),
                 "black_point": ("FLOAT", {"default": 0.01, "min": 0.01, "max": 0.98, "step": 0.01}),
@@ -267,6 +267,18 @@ class ProcessDetails_RBS:
                 local_files_only = detail_method == "VITMatte(local)"
                 trimap = generate_VITMatte_trimap(orig_mask, detail_erode, detail_dilate)
                 processed_mask = generate_VITMatte(orig_image, trimap, local_files_only, device, max_megapixels)
+            elif detail_method == "PyMatting":
+                trimap = generate_VITMatte_trimap(orig_mask, detail_erode, detail_dilate)
+                try:
+                    from pymatting import estimate_alpha_lkm
+                except ImportError:
+                    raise RuntimeError("请先安装 pymatting 库: pip install pymatting scikit-image")
+                import numpy as np
+                image_np = np.array(orig_image.convert('RGB'))
+                trimap_np = np.array(trimap.convert('L')) / 255.0
+                # PyMatting只用LKM算法，参数风格与LayerStyle_Advance一致
+                alpha = estimate_alpha_lkm(image_np, trimap_np)
+                processed_mask = Image.fromarray((alpha * 255).astype(np.uint8))
             else:  # GuidedFilter
                 processed_mask = mask_edge_detail(i, m, detail_erode, black_point, white_point)
                 processed_mask = tensor2pil(processed_mask)
