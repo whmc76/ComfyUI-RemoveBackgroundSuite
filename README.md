@@ -5,10 +5,17 @@
 
 ## 版本信息
 
-- 当前版本：v1.2
+- 当前版本：v0.2
 - 更新日期：2024-06-XX
 
 ## 更新日志
+
+### v0.2 (2024-06-XX)
+- BiRefNetUltraV3_RBS 节点合并模型加载功能，直接选择模型版本，无需单独加载节点。
+- BiRefNetUltraV3_RBS、TransparentBackgroundUltra_RBS 节点的 max_megapixels 参数支持动态调整分辨率，自动缩放为32的倍数，防止patch分割报错。
+- 新增 Mask Process Details (RBS) 节点，支持VITMatte/GuidedFilter等多种细节处理方法，参数可调。
+- 节点命名与界面优化，部分节点重命名。
+- 细节处理参数范围优化。
 
 ### v1.2 (2024-06-XX)
 - 节点界面极简化，移除所有细节处理相关参数和功能。
@@ -25,36 +32,41 @@
 
 ## 节点说明
 
-### 1. LoadBiRefNetModelV3_RBS（推荐）
-- **功能**：自动下载并加载 BiRefNet 最新模型，支持 BiRefNet_dynamic。
-- **参数**：
-  - `version`：选择模型版本（BiRefNet-General、RMBG-2.0、BiRefNet_dynamic）。
-- **输出**：`birefnet_model`（供后续节点使用）
-
-### 2. BiRefNetUltraV3_RBS（推荐）
-- **功能**：使用 BiRefNet Ultra V3 进行高质量背景移除，支持 dynamic 动态模型。
+### 1. BiRefNet Ultra V3 (RBS)
+- **功能**：使用 BiRefNet Ultra V3 进行高质量背景移除，支持 dynamic/HR/HR-matting 等多种模型。
 - **参数**：
   - `image`：输入图片（支持批量）。
-  - `birefnet_model`：已加载的模型（支持 dynamic）。
-  - `device`、`max_megapixels`：详见节点界面。
+  - `version`：选择模型版本（BiRefNet-General、RMBG-2.0、BiRefNet_dynamic等）。
+  - `device`、`max_megapixels`：详见节点界面。max_megapixels 会自动动态缩放分辨率为32的倍数。
 - **输出**：
   - `image`：去背景后的 RGBA 图片
   - `mask`：前景掩码
 
-### 3. TransparentBackgroundUltra_RBS
+### 2. Transparent Background Ultra (RBS)
 - **功能**：将图片背景转换为透明。
 - **参数**：
   - `image`：输入图片。
   - `model`：选择本地模型。
-  - `device`、`max_megapixels`：详见节点界面。
+  - `device`、`max_megapixels`：详见节点界面。max_megapixels 会自动动态缩放分辨率为32的倍数。
 - **输出**：
   - `image`：透明背景图片
   - `mask`：前景掩码
 
+### 3. Mask Process Details (RBS)
+- **功能**：对输入图像和mask进行细节优化，支持VITMatte、GuidedFilter等多种方法。
+- **参数**：
+  - `image`：输入图片。
+  - `mask`：输入掩码。
+  - `detail_method`：细节处理方法（VITMatte、VITMatte(local)、GuidedFilter）。
+  - `detail_erode`、`detail_dilate`、`black_point`、`white_point`、`device`、`max_megapixels`：详见节点界面。
+- **输出**：
+  - `image`：优化后的图片
+  - `mask`：优化后的掩码
+
 ## 典型用法
-1. 用 `LoadBiRefNetModelV3_RBS` 加载模型（推荐选择 BiRefNet_dynamic）。
-2. 用 `BiRefNetUltraV3_RBS` 进行背景移除。
-3. 可选：用 `TransparentBackgroundUltra_RBS` 进一步处理透明背景。
+1. 用 `BiRefNet Ultra V3 (RBS)` 进行背景移除。
+2. 可选：用 `Mask Process Details (RBS)` 进一步优化边缘细节。
+3. 可选：用 `Transparent Background Ultra (RBS)` 处理透明背景。
 
 ## 注意事项
 - 请将模型文件放在 `ComfyUI/models/transparent-background/` 目录下，或使用新版节点自动下载。

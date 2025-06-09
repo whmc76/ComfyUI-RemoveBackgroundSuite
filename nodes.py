@@ -74,7 +74,26 @@ class TransparentBackgroundUltra_RBS:
         for i in image:
             i = torch.unsqueeze(i, 0)
             orig_image = tensor2pil(i).convert('RGB')
-            ret_image = remover.process(orig_image, type='rgba')
+            width, height = orig_image.size
+            max_pixels = int(max_megapixels * 1_048_576)
+            orig_pixels = width * height
+            patch_size = 32
+            if orig_pixels > max_pixels:
+                scale = (max_pixels / orig_pixels) ** 0.5
+                new_width = max(1, int(width * scale))
+                new_height = max(1, int(height * scale))
+            else:
+                new_width, new_height = width, height
+            new_width = (new_width // patch_size) * patch_size
+            new_height = (new_height // patch_size) * patch_size
+            new_width = max(patch_size, new_width)
+            new_height = max(patch_size, new_height)
+            inference_image_size = (new_width, new_height)
+            log(f"[TransparentBackgroundUltra_RBS] 原始尺寸: {width}x{height}, 实际推理尺寸: {inference_image_size[0]}x{inference_image_size[1]}", message_type='info')
+            resized_image = orig_image.resize(inference_image_size, Image.BILINEAR)
+            ret_image = remover.process(resized_image, type='rgba')
+            # 推理后还原为原图尺寸
+            ret_image = ret_image.resize(orig_image.size, Image.BILINEAR)
             _mask = ret_image.split()[3]
             ret_images.append(pil2tensor(ret_image))
             ret_masks.append(image2mask(_mask))
@@ -83,26 +102,7 @@ class TransparentBackgroundUltra_RBS:
 
 # ======================== V3 新增：支持 BiRefNet-Dynamic ========================
 
-class LoadBiRefNetModelV3_RBS:
-    def __init__(self):
-        self.model = None
-
-    @classmethod
-    def INPUT_TYPES(s):
-        # 新增 dynamic 选项
-        model_list = list(s.birefnet_model_repos.keys())
-        return {
-            "required": {
-                "version": (model_list, {"default": model_list[0]}), # 选择模型版本
-            },
-        }
-
-    RETURN_TYPES = ("BIREFNET_MODEL",)
-    RETURN_NAMES = ("birefnet_model",)
-    FUNCTION = "load_birefnet_model_v3"
-    CATEGORY = 'RemoveBackgroundSuite'
-
-    # 支持 dynamic、HR、HR-matting 模型
+class BiRefNetUltraV3_RBS:
     birefnet_model_repos = {
         "BiRefNet-General": "ZhengPeng7/BiRefNet",
         "RMBG-2.0": "briaai/RMBG-2.0",
@@ -111,48 +111,18 @@ class LoadBiRefNetModelV3_RBS:
         "BiRefNet_HR-matting": "ZhengPeng7/BiRefNet_HR-matting"
     }
 
-    def load_birefnet_model_v3(self, version):
-        birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
-        os.makedirs(birefnet_path, exist_ok=True)
-        model_path = os.path.join(birefnet_path, version)
-
-        if version == "BiRefNet-General":
-            old_birefnet_path = os.path.join(birefnet_path, 'pth')
-            old_model = "BiRefNet-general-epoch_244.pth"
-            old_model_path = os.path.join(old_birefnet_path, old_model)
-            if os.path.exists(old_model_path):
-                from .BiRefNet.models.birefnet import BiRefNet
-                from .BiRefNet.utils import check_state_dict
-                self.birefnet = BiRefNet(bb_pretrained=False)
-                self.state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
-                self.state_dict = check_state_dict(self.state_dict)
-                self.birefnet.load_state_dict(self.state_dict)
-                return (self.birefnet,)
-        # 动态模型及HR、HR-matting模型下载
-        if version in ["BiRefNet_dynamic", "BiRefNet_HR", "BiRefNet_HR-matting"] and not os.path.exists(model_path):
-            log(f"Downloading {version} model...")
-            from huggingface_hub import snapshot_download
-            repo_id = self.birefnet_model_repos[version]
-            snapshot_download(repo_id=repo_id, local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
-        elif version == "RMBG-2.0" and not os.path.exists(model_path):
-            log(f"Downloading RMBG-2.0 model...")
-            from huggingface_hub import snapshot_download
-            snapshot_download(repo_id="briaai/RMBG-2.0", local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
-
-        self.model = AutoModelForImageSegmentation.from_pretrained(model_path, trust_remote_code=True)
-        return (self.model,)
-
-class BiRefNetUltraV3_RBS:
     def __init__(self):
         self.NODE_NAME = 'BiRefNetUltraV3_RBS'
+        self.model_cache = {}
 
     @classmethod
     def INPUT_TYPES(cls):
         device_list = ['cuda', 'cpu']
+        model_list = list(cls.birefnet_model_repos.keys())
         return {
             "required": {
                 "image": ("IMAGE",),
-                "birefnet_model": ("BIREFNET_MODEL",),
+                "version": (model_list, {"default": model_list[0]}),
                 "device": (device_list,),
                 "max_megapixels": ("FLOAT", {"default": 2.0, "min": 1, "max": 999, "step": 0.1}),
             },
@@ -165,12 +135,45 @@ class BiRefNetUltraV3_RBS:
     FUNCTION = "birefnet_ultra_v3"
     CATEGORY = 'RemoveBackgroundSuite'
 
-    # 主推理流程，兼容 dynamic 模型
-    def birefnet_ultra_v3(self, image, birefnet_model, device, max_megapixels):
+    def load_birefnet_model(self, version):
+        birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
+        os.makedirs(birefnet_path, exist_ok=True)
+        model_path = os.path.join(birefnet_path, version)
+
+        if version == "BiRefNet-General":
+            old_birefnet_path = os.path.join(birefnet_path, 'pth')
+            old_model = "BiRefNet-general-epoch_244.pth"
+            old_model_path = os.path.join(old_birefnet_path, old_model)
+            if os.path.exists(old_model_path):
+                from .BiRefNet.models.birefnet import BiRefNet
+                from .BiRefNet.utils import check_state_dict
+                birefnet = BiRefNet(bb_pretrained=False)
+                state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
+                state_dict = check_state_dict(state_dict)
+                birefnet.load_state_dict(state_dict)
+                return birefnet
+        # 动态模型及HR、HR-matting模型下载
+        if version in ["BiRefNet_dynamic", "BiRefNet_HR", "BiRefNet_HR-matting"] and not os.path.exists(model_path):
+            log(f"Downloading {version} model...")
+            from huggingface_hub import snapshot_download
+            repo_id = self.birefnet_model_repos[version]
+            snapshot_download(repo_id=repo_id, local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
+        elif version == "RMBG-2.0" and not os.path.exists(model_path):
+            log(f"Downloading RMBG-2.0 model...")
+            from huggingface_hub import snapshot_download
+            snapshot_download(repo_id="briaai/RMBG-2.0", local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
+
+        model = AutoModelForImageSegmentation.from_pretrained(model_path, trust_remote_code=True)
+        return model
+
+    def birefnet_ultra_v3(self, image, version, device, max_megapixels):
         ret_images = []
         ret_masks = []
-        inference_image_size = (1024, 1024)
         torch.set_float32_matmul_precision(['high', 'highest'][0])
+        # 模型缓存，避免重复加载
+        if version not in self.model_cache:
+            self.model_cache[version] = self.load_birefnet_model(version)
+        birefnet_model = self.model_cache[version]
         birefnet_model.to(device)
         birefnet_model.eval()
         comfy_pbar = ProgressBar(len(image))
@@ -178,6 +181,24 @@ class BiRefNetUltraV3_RBS:
         for i in image:
             i = torch.unsqueeze(i, 0)
             orig_image = tensor2pil(i).convert('RGB')
+            width, height = orig_image.size
+            max_pixels = int(max_megapixels * 1_048_576)
+            orig_pixels = width * height
+            patch_size = 32  # 保证分辨率为32的倍数
+            # 动态调整分辨率
+            if orig_pixels > max_pixels:
+                scale = (max_pixels / orig_pixels) ** 0.5
+                new_width = max(1, int(width * scale))
+                new_height = max(1, int(height * scale))
+            else:
+                new_width, new_height = width, height
+            # 向下取整为patch_size的倍数
+            new_width = (new_width // patch_size) * patch_size
+            new_height = (new_height // patch_size) * patch_size
+            new_width = max(patch_size, new_width)
+            new_height = max(patch_size, new_height)
+            inference_image_size = (new_width, new_height)
+            log(f"[BiRefNetUltraV3_RBS] 原始尺寸: {width}x{height}, 实际推理尺寸: {inference_image_size[0]}x{inference_image_size[1]}", message_type='info')
             transform_image = transforms.Compose([
                 transforms.Resize(inference_image_size),
                 transforms.ToTensor(),
@@ -188,9 +209,9 @@ class BiRefNetUltraV3_RBS:
                 preds = birefnet_model(inference_image)[-1].sigmoid().cpu()
             pred = preds[0].squeeze()
             pred_pil = transforms.ToPILImage()(pred)
-            _mask = pred_pil.resize(inference_image_size)
-            resize_sampler = Image.BILINEAR
-            _mask = _mask.resize(orig_image.size, resize_sampler)
+            # 先还原到inference_image_size，再还原到原图尺寸
+            _mask = pred_pil.resize(inference_image_size, Image.BILINEAR)
+            _mask = _mask.resize(orig_image.size, Image.BILINEAR)
             brightness_image = ImageEnhance.Brightness(_mask)
             _mask = brightness_image.enhance(factor=1.08)
             _mask = image2mask(_mask)
@@ -208,17 +229,68 @@ class BiRefNetUltraV3_RBS:
         log(f"{self.NODE_NAME} Processed {len(ret_masks)} image(s).", message_type='finish')
         return (torch.cat(ret_images, dim=0), torch.cat(ret_masks, dim=0),)
 
+class ProcessDetails_RBS:
+    def __init__(self):
+        self.NODE_NAME = 'ProcessDetails_RBS'
+        self.vitmatte_model = None
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "mask": ("MASK",),
+                "detail_method": (["VITMatte", "VITMatte(local)", "GuidedFilter"], {"default": "VITMatte"}),
+                "detail_erode": ("INT", {"default": 4, "min": 1, "max": 100, "step": 1}),
+                "detail_dilate": ("INT", {"default": 2, "min": 1, "max": 100, "step": 1}),
+                "black_point": ("FLOAT", {"default": 0.01, "min": 0.01, "max": 0.98, "step": 0.01}),
+                "white_point": ("FLOAT", {"default": 0.99, "min": 0.02, "max": 0.99, "step": 0.01}),
+                "device": (["cuda", "cpu"], {"default": "cuda"}),
+                "max_megapixels": ("FLOAT", {"default": 2.0, "min": 1, "max": 999, "step": 0.1}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK",)
+    RETURN_NAMES = ("image", "mask",)
+    FUNCTION = "process_details"
+    CATEGORY = 'RemoveBackgroundSuite'
+
+    def process_details(self, image, mask, detail_method, detail_erode, detail_dilate, black_point, white_point, device, max_megapixels):
+        ret_images = []
+        ret_masks = []
+        
+        for i, m in zip(image, mask):
+            orig_image = tensor2pil(i)
+            orig_mask = tensor2pil(m)
+            
+            if detail_method.startswith("VITMatte"):
+                local_files_only = detail_method == "VITMatte(local)"
+                trimap = generate_VITMatte_trimap(orig_mask, detail_erode, detail_dilate)
+                processed_mask = generate_VITMatte(orig_image, trimap, local_files_only, device, max_megapixels)
+            else:  # GuidedFilter
+                processed_mask = mask_edge_detail(i, m, detail_erode, black_point, white_point)
+                processed_mask = tensor2pil(processed_mask)
+            
+            # 应用处理后的蒙版到图像
+            processed_image = RGB2RGBA(orig_image, processed_mask)
+            
+            ret_images.append(pil2tensor(processed_image))
+            ret_masks.append(image2mask(processed_mask))
+        
+        log(f"{self.NODE_NAME} Processed {len(ret_images)} image(s).", message_type='finish')
+        return (torch.cat(ret_images, dim=0), torch.cat(ret_masks, dim=0),)
+
 # 节点注册映射
 NODE_CLASS_MAPPINGS = {
     "TransparentBackgroundUltra_RBS": TransparentBackgroundUltra_RBS,
-    "LoadBiRefNetModelV3_RBS": LoadBiRefNetModelV3_RBS,
-    "BiRefNetUltraV3_RBS": BiRefNetUltraV3_RBS
+    "BiRefNetUltraV3_RBS": BiRefNetUltraV3_RBS,
+    "MaskProcessDetails_RBS": ProcessDetails_RBS
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TransparentBackgroundUltra_RBS": "Transparent Background Ultra (RBS)",
-    "LoadBiRefNetModelV3_RBS": "Load BiRefNet Model V3 (RBS)",
-    "BiRefNetUltraV3_RBS": "BiRefNet Ultra V3 (RBS)"
+    "BiRefNetUltraV3_RBS": "BiRefNet Ultra V3 (RBS)",
+    "MaskProcessDetails_RBS": "Mask Process Details (RBS)"
 }
 
 def log_mask_info(tag, mask):
