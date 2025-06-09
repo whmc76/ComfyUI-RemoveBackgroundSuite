@@ -10,7 +10,7 @@ Repository = "https://github.com/whmc76/ComfyUI-RemoveBackgroundSuite"
 #  Used by Comfy Registry https://registry.comfy.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "whmc76"
 DisplayName = "ComfyUI-RemoveBackgroundSuite"
 Icon = ""
 includes = []
