@@ -136,35 +136,38 @@ class BiRefNetUltraV3_RBS:
     CATEGORY = 'RemoveBackgroundSuite'
 
     def load_birefnet_model(self, version):
-        birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
-        os.makedirs(birefnet_path, exist_ok=True)
-        model_path = os.path.join(birefnet_path, version)
+        model_path = os.path.join(folder_paths.models_dir, "BiRefNet", version)
+        os.makedirs(model_path, exist_ok=True)
+        
+        # 检查是否存在旧版模型
+        old_model_path = os.path.join(model_path, "model.pth")
+        if os.path.exists(old_model_path):
+            from .BiRefNet.models.birefnet import BiRefNet
+            from .BiRefNet.utils import check_state_dict
+            birefnet = BiRefNet(bb_pretrained=False)
+            state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
+            state_dict = check_state_dict(state_dict)
+            birefnet.load_state_dict(state_dict)
+            return birefnet
 
-        if version == "BiRefNet-General":
-            old_birefnet_path = os.path.join(birefnet_path, 'pth')
-            old_model = "BiRefNet-general-epoch_244.pth"
-            old_model_path = os.path.join(old_birefnet_path, old_model)
-            if os.path.exists(old_model_path):
-                from .BiRefNet.models.birefnet import BiRefNet
-                from .BiRefNet.utils import check_state_dict
-                birefnet = BiRefNet(bb_pretrained=False)
-                state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
-                state_dict = check_state_dict(state_dict)
-                birefnet.load_state_dict(state_dict)
-                return birefnet
-        # 动态模型及HR、HR-matting模型下载
-        if version in ["BiRefNet_dynamic", "BiRefNet_HR", "BiRefNet_HR-matting"] and not os.path.exists(model_path):
+        # 检查模型是否存在，如果不存在则下载
+        if not os.path.exists(model_path) or not any(os.path.exists(os.path.join(model_path, f)) for f in os.listdir(model_path) if f.endswith(('.pth', '.bin', '.safetensors'))):
             log(f"Downloading {version} model...")
             from huggingface_hub import snapshot_download
             repo_id = self.birefnet_model_repos[version]
             snapshot_download(repo_id=repo_id, local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
-        elif version == "RMBG-2.0" and not os.path.exists(model_path):
-            log(f"Downloading RMBG-2.0 model...")
-            from huggingface_hub import snapshot_download
-            snapshot_download(repo_id="briaai/RMBG-2.0", local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
 
-        model = AutoModelForImageSegmentation.from_pretrained(model_path, trust_remote_code=True)
-        return model
+        # 使用本地路径加载模型
+        if os.path.exists(model_path):
+            try:
+                from transformers import AutoModelForImageSegmentation
+                model = AutoModelForImageSegmentation.from_pretrained(model_path, local_files_only=True, trust_remote_code=True)
+                return model
+            except Exception as e:
+                log(f"Error loading model from {model_path}: {str(e)}", message_type='error')
+                raise
+        else:
+            raise RuntimeError(f"Model path {model_path} does not exist")
 
     def birefnet_ultra_v3(self, image, version, device, max_megapixels):
         ret_images = []

@@ -65,6 +65,12 @@ The following models are supported:
 
 ## Changelog
 
+### v1.1.2
+- 修复了模型加载路径的问题
+- 改进了模型自动下载功能
+- 添加了缺失的依赖项
+- 优化了错误处理和日志记录
+
 ### v1.1.1
 - Fixed VITMatte processing quality issues
 - Optimized image size handling for different processing methods
