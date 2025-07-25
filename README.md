@@ -40,7 +40,7 @@ The following models are supported:
 
 ## Nodes
 
-### BiRefNetUltraV3_RBS
+### BiRefNetUltra_RBS
 - **Input**: Image
 - **Output**: Mask
 - **Parameters**:
@@ -64,6 +64,13 @@ The following models are supported:
   - Max Megapixels: Control processing resolution
 
 ## Changelog
+
+### v1.2.0
+- 为 BiRefNet Ultra (RBS) 和 Transparent Background Ultra (RBS) 节点添加了 mask 输入功能
+- 新增 "自动适用原图遮罩" 参数，支持智能检测和使用输入的 mask
+- 优化了节点名称，移除了 BiRefNetUltraV3_RBS 中的 "V3" 后缀
+- 修复了输入 mask 应用时的翻转问题，确保输出结果正确
+- 改进了批量处理逻辑，支持图像和 mask 的自动匹配
 
 ### v1.1.2
 - 修复了模型加载路径的问题

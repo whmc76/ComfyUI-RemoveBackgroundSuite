@@ -1,7 +1,7 @@
 [project]
 name = "removebackgroundsuite"
 description = "A matting toolkit based on ComfyUI, supporting multiple matting models and detail processing methods."
-version = "1.1.2"
+version = "1.2.0"
 license = {file = "LICENSE"}
 dependencies = ["torch", "numpy", "Pillow", "torchvision", "opencv-python", "scipy", "transformers", "tqdm", "pymatting", "guided-filter", "vitmatte", "timm"]
 

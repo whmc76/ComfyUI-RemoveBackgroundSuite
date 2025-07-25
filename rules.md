@@ -16,7 +16,7 @@ ComfyUI-RemoveBackgroundSuite 是一个基于 ComfyUI 的抠图工具包，支�
 
 2. **文件命名规范**
    - Python 文件使用小写字母和下划线：`model_utils.py`
-   - 类名使用 PascalCase：`BiRefNetUltraV3_RBS`
+   - 类名使用 PascalCase：`BiRefNetUltra_RBS`
    - 函数和变量使用 snake_case：`process_mask`
 
 3. **注释规范**
