@@ -1,6 +1,6 @@
 # ComfyUI-RemoveBackgroundSuite
 
-**版本**: v1.2.0  
+**版本**: v1.2.1  
 **ComfyUI 插件**: 抠图工具包
 
 A matting toolkit based on ComfyUI, supporting multiple matting models and detail processing methods.
@@ -67,6 +67,12 @@ The following models are supported:
   - Max Megapixels: Control processing resolution
 
 ## Changelog
+
+### v1.2.1
+- 完善了ComfyUI插件配置和元数据
+- 添加了详细的插件描述和功能标签
+- 优化了README.md的版本信息显示
+- 改进了ComfyUI Registry的兼容性
 
 ### v1.2.0
 - 为 BiRefNet Ultra (RBS) 和 Transparent Background Ultra (RBS) 节点添加了 mask 输入功能
