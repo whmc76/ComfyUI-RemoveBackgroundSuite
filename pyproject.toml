@@ -12,5 +12,8 @@ Repository = "https://github.com/whmc76/ComfyUI-RemoveBackgroundSuite"
 [tool.comfy]
 PublisherId = "whmc76"
 DisplayName = "ComfyUI-RemoveBackgroundSuite"
+Description = "A comprehensive matting toolkit for ComfyUI with support for multiple models including BiRefNet, RMBG, and advanced mask processing capabilities."
+Version = "1.2.0"
 Icon = ""
 includes = []
+tags = ["matting", "background-removal", "image-processing", "mask-processing"]

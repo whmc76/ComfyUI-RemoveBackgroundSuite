@@ -1,5 +1,8 @@
 # ComfyUI-RemoveBackgroundSuite
 
+**版本**: v1.2.0  
+**ComfyUI 插件**: 抠图工具包
+
 A matting toolkit based on ComfyUI, supporting multiple matting models and detail processing methods.
 
 ## Features
