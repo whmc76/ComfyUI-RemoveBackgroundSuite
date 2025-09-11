@@ -1,9 +1,16 @@
 # ComfyUI-RemoveBackgroundSuite
 
-**版本**: v1.2.1  
+**版本**: v1.2.3  
 **ComfyUI 插件**: 抠图工具包
 
 A matting toolkit based on ComfyUI, supporting multiple matting models and detail processing methods.
+
+## 🆕 最新更新 (v1.2.3)
+
+- **自动修复BiRefNet兼容性问题**: 新增动态配置修复功能，自动解决BiRefNet模型与transformers库的兼容性问题
+- **无需手动修改**: 用户安装插件后无需修改models文件夹中的任何文件
+- **智能检测**: 自动检测并修复所有BiRefNet模型版本的配置问题
+- **向后兼容**: 完全兼容现有工作流程，不影响原始模型文件
 
 ## Features
 

@@ -191,6 +191,56 @@ class BiRefNetUltra_RBS:
     FUNCTION = "birefnet_ultra"
     CATEGORY = 'RemoveBackgroundSuite'
 
+    def apply_birefnet_config_patch(self, model_path):
+        """动态修复BiRefNet配置类缺少is_encoder_decoder属性的问题"""
+        try:
+            # 动态导入并修复BiRefNetConfig类
+            import sys
+            import importlib.util
+            
+            # 查找BiRefNet_config.py文件
+            config_file = os.path.join(model_path, "BiRefNet_config.py")
+            if os.path.exists(config_file):
+                spec = importlib.util.spec_from_file_location("BiRefNet_config", config_file)
+                config_module = importlib.util.module_from_spec(spec)
+                sys.modules["BiRefNet_config"] = config_module
+                spec.loader.exec_module(config_module)
+                
+                # 检查并修复BiRefNetConfig类
+                if hasattr(config_module, 'BiRefNetConfig'):
+                    original_init = config_module.BiRefNetConfig.__init__
+                    
+                    def patched_init(self, *args, **kwargs):
+                        original_init(self, *args, **kwargs)
+                        if not hasattr(self, 'is_encoder_decoder'):
+                            self.is_encoder_decoder = False
+                    
+                    config_module.BiRefNetConfig.__init__ = patched_init
+                    log(f"Applied BiRefNetConfig patch for {model_path}", message_type='info')
+            
+            # 查找birefnet.py文件中的Config类
+            birefnet_file = os.path.join(model_path, "birefnet.py")
+            if os.path.exists(birefnet_file):
+                spec = importlib.util.spec_from_file_location("birefnet", birefnet_file)
+                birefnet_module = importlib.util.module_from_spec(spec)
+                sys.modules["birefnet"] = birefnet_module
+                spec.loader.exec_module(birefnet_module)
+                
+                # 检查并修复Config类
+                if hasattr(birefnet_module, 'Config'):
+                    original_init = birefnet_module.Config.__init__
+                    
+                    def patched_init(self, *args, **kwargs):
+                        original_init(self, *args, **kwargs)
+                        if not hasattr(self, 'is_encoder_decoder'):
+                            self.is_encoder_decoder = False
+                    
+                    birefnet_module.Config.__init__ = patched_init
+                    log(f"Applied Config patch for {model_path}", message_type='info')
+                    
+        except Exception as e:
+            log(f"Warning: Could not apply config patch for {model_path}: {str(e)}", message_type='warning')
+
     def load_birefnet_model(self, version):
         model_path = os.path.join(folder_paths.models_dir, "BiRefNet", version)
         os.makedirs(model_path, exist_ok=True)
@@ -216,6 +266,9 @@ class BiRefNetUltra_RBS:
         # 使用本地路径加载模型
         if os.path.exists(model_path):
             try:
+                # 应用配置补丁
+                self.apply_birefnet_config_patch(model_path)
+                
                 from transformers import AutoModelForImageSegmentation
                 model = AutoModelForImageSegmentation.from_pretrained(model_path, local_files_only=True, trust_remote_code=True)
                 return model
