@@ -1,8 +1,12 @@
 torch
 numpy
 Pillow
+torchvision
 opencv-python
 scipy
-torchvision
 transformers
-tqdm 
+tqdm
+pymatting
+guided-filter
+vitmatte
+timm 

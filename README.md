@@ -1,12 +1,18 @@
 # ComfyUI-RemoveBackgroundSuite
 
-**版本**: v1.2.3  
+**版本**: v1.2.4  
 **ComfyUI 插件**: 抠图工具包
 
 A matting toolkit based on ComfyUI, supporting multiple matting models and detail processing methods.
 
-## 🆕 最新更新 (v1.2.3)
+## 🆕 最新更新 (v1.2.4)
 
+- **更新ComfyUI Registry配置**: 优化了pyproject.toml配置文件，符合最新的ComfyUI Registry发布规范
+- **完善依赖管理**: 同步更新了requirements.txt文件，确保所有依赖项完整
+- **增强元数据**: 添加了更详细的标签和描述信息，提升在Registry中的可发现性
+- **图标支持**: 配置了项目图标URL，提升用户体验
+
+### v1.2.3
 - **自动修复BiRefNet兼容性问题**: 新增动态配置修复功能，自动解决BiRefNet模型与transformers库的兼容性问题
 - **无需手动修改**: 用户安装插件后无需修改models文件夹中的任何文件
 - **智能检测**: 自动检测并修复所有BiRefNet模型版本的配置问题
